@@ -1,10 +1,13 @@
 import express from 'express';
-import { AddCustomer, getCustomers } from '../controllers/customers.js';
+import { AddCustomer, getCustomers, deleteCustomer, updateCustomer } from '../controllers/customers.js';
 
 const router = express.Router();
 
 router.post('/', AddCustomer);
-router.get('/deneme', getCustomers)
+router.get('/', getCustomers);
+router.put('/:id', updateCustomer);
+router.delete('/:id', deleteCustomer);
+
 
 
 export default router;
