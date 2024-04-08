@@ -8,6 +8,11 @@ const ArrivedSchema = mongoose.Schema({
     quantity: {
         type: Number,
         required: true,
+    },
+    birim: {
+        type: String,
+        enum: ["kg", "adet"],
+        default: "adet"
     }
 }, {timestamps: true});
 

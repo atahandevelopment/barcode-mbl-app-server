@@ -13,6 +13,11 @@ const ProductSchema = mongoose.Schema({
     type: String,
     required: true,
   },
+  birim: {
+    type: String,
+    enum: ["kg", "adet"],
+    default: "adet",
+  },
   barcode_type: {
     type: String,
     enum: ["terazi", "urun"],
