@@ -17,6 +17,11 @@ const ProductSchema =
       type: String,
       required: true,
     },
+    birim: {
+      type: String,
+      enum: ["kg", "adet"],
+      default: null
+    },
     barcode_type: {
       type: String,
       enum: ["terazi", "urun"],

@@ -4,7 +4,7 @@ import Customer from "../models/Customer.js";
 
 export const AddSale = async (req, res, next) => {
   try {
-    const { barcode, quantity, total_price, customer } = req.body;
+    const { barcode, quantity, customer } = req.body;
 
     const findProduct = await Product.find({ barcode: barcode });
     const findCustomer = await Customer.find({ _id: customer });
@@ -14,7 +14,7 @@ export const AddSale = async (req, res, next) => {
 
     const createSale = await Sale.create({
       quantity,
-      total_price,
+      total_price: findProduct[0]?.price * quantity,
       product: {
         _id: findProduct[0]._id,
         name: findProduct[0].name,
@@ -22,6 +22,7 @@ export const AddSale = async (req, res, next) => {
         price: findProduct[0].price,
         product_type: findProduct[0].product_type,
         barcode_type: findProduct[0].barcode_type,
+        ...(barcode.slice(0, 2) === "29" ? { birim: "kg" } : { birim: "adet" }),
       },
       customer: {
         _id: findCustomer[0]._id,
@@ -53,15 +54,25 @@ export const getSales = async (req, res, next) => {
       end_date,
     } = req.query;
     const queryArray = [];
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
 
     if (id) queryArray.push({ _id: id });
     if (name) queryArray.push({ name: name });
     if (barcode) queryArray.push({ "product.barcode": barcode });
-    if (customer_name) queryArray.push({ "customer.customer_name": customer_name });
+    if (customer_name)
+      queryArray.push({ "customer.customer_name": customer_name });
     if (product_name) queryArray.push({ "product.name": product_name });
     if (product_price) queryArray.push({ "product.price": product_price });
     if (total_price) queryArray.push({ total_price: total_price });
     if (quantity) queryArray.push({ quantity: parseInt(quantity) });
+    if (end_date && start_date)
+      queryArray.push({
+        createdAt: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      });
 
     let query = null;
 
@@ -115,6 +126,74 @@ export const deleteSale = async (req, res, next) => {
     } else {
       return res.status(404).json({ message: "Sales not found" });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getSalesReports = async (req, res, next) => {
+  try {
+    const { start_date, end_date, customer } = req.query;
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    const salesReport = await Sale.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+          "customer._id": customer,
+        },
+      },
+      {
+        $group: {
+          _id: "$product.barcode",
+          name: {
+            $first: "$product.name",
+          },
+          barcode: {
+            $first: "$product.barcode",
+          },
+          birim: {
+            $first: "$product.birim",
+          },
+          sales: {
+            $push: {
+              quantity: "$quantity",
+              total_price: "$total_price",
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          total_sales: {
+            $reduce: {
+              input: "$sales",
+              initialValue: 0,
+              in: {
+                $sum: ["$$value", { $toDouble: "$$this.total_price" }],
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          name: 1,
+          barcode: 1,
+          birim: 1,
+          total_quantity: { $sum: "$sales.quantity" },
+          total_price: "$total_sales",
+        },
+      },
+    ]);
+
+    return res.status(200).json({ success: true, data: salesReport });
   } catch (error) {
     next(error);
   }
