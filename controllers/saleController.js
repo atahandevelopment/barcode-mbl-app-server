@@ -138,15 +138,20 @@ export const getSalesReports = async (req, res, next) => {
     const startDate = new Date(start_date);
     const endDate = new Date(end_date);
 
+    const matchQuery = {
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    };
+
+    if (customer) {
+      matchQuery["customer._id"] = customer;
+    }
+
     const salesReport = await Sale.aggregate([
       {
-        $match: {
-          createdAt: {
-            $gte: startDate,
-            $lte: endDate,
-          },
-          "customer._id": customer,
-        },
+        $match: matchQuery,
       },
       {
         $group: {
@@ -193,7 +198,24 @@ export const getSalesReports = async (req, res, next) => {
       },
     ]);
 
-    return res.status(200).json({ success: true, data: salesReport });
+    const totalSalesPrice = await Sale.aggregate([
+      {
+        $match: matchQuery,
+      },
+      {
+        $group: {
+          _id: null,
+          total_price: { $sum: { $toDouble: "$total_price" } },
+        },
+      },
+    ]);
+
+    const totalPrice =
+      totalSalesPrice.length > 0 ? totalSalesPrice[0].total_price : 0;
+
+    return res
+      .status(200)
+      .json({ success: true, data: salesReport, total: totalPrice });
   } catch (error) {
     next(error);
   }
