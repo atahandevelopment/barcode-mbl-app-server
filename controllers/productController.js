@@ -5,6 +5,30 @@ export const AddProduct = async (req, res, next) => {
   try {
     const productData = req.body;
     const { barcode } = req.body;
+    let birim = "";
+    let barcodeType = "";
+    let productType = "";
+
+    if (barcode.slice(0, 2) === "29") {
+      birim = "kg";
+      barcodeType = "terazi";
+      productType = "tartili";
+    } else if (barcode.slice(0, 2) === "28") {
+      barcodeType = "terazi";
+      productType = "parcali";
+      birim = "adet";
+    } else {
+      barcodeType = "urun";
+      productType = "parcali";
+      birim = "adet";
+    }
+
+    const formattedData = {
+      ...productData,
+      birim: birim,
+      product_type: productType,
+      barcode_type: barcodeType
+    }
 
     const existingBarcode = await Product.find({ barcode: barcode });
     if (existingBarcode.length > 0) {
@@ -12,7 +36,7 @@ export const AddProduct = async (req, res, next) => {
         .status(400)
         .json({ success: false, message: "Bu ürün zaten kayıtlı" });
     }
-    const createProduct = await Product.create(productData);
+    const createProduct = await Product.create(formattedData);
 
     return res.status(201).json({ success: true, data: createProduct });
   } catch (error) {
