@@ -37,3 +37,38 @@ export const getArrivedProducts = async (req, res, next) => {
     next(error);
   }
 };
+
+export const updateArrivedProduct = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const newData = req.body;
+
+    const updatedData = await ArrivedProduct.findByIdAndUpdate(
+      { _id: id },
+      newData,
+      { new: true }
+    );
+
+    if (updatedData) {
+      return res.status(200).json({ success: true, data: updatedData });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteArrivedProduct = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const updatedData = await ArrivedProduct.findByIdAndDelete(
+      { _id: id }
+    );
+
+    if (updatedData) {
+      return res.status(200).json({ success: true, data: updatedData });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
