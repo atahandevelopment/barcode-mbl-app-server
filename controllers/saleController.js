@@ -1,6 +1,7 @@
 import Sale from "../models/Sale.js";
 import Product from "../models/Product.js";
 import Customer from "../models/Customer.js";
+import Months from "../mock/Months.js";
 
 export const AddSale = async (req, res, next) => {
   try {
@@ -149,6 +150,7 @@ export const getSalesReports = async (req, res, next) => {
       matchQuery["customer._id"] = customer;
     }
 
+    // İKİ TARİH ARALIĞI TOPLAM TUTAR SORGULARI
     const salesReport = await Sale.aggregate([
       {
         $match: matchQuery,
@@ -216,6 +218,153 @@ export const getSalesReports = async (req, res, next) => {
     return res
       .status(200)
       .json({ success: true, data: salesReport, total: totalPrice });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// 1 AY İÇİNDEKİ GÜNLÜK CHART VERİLERİ
+
+export const chartController = async (req, res, next) => {
+  try {
+    const { month, year } = req.params;
+    const fixedMonth = month - 1;
+
+    const startDate = new Date(year, fixedMonth, 1);
+    const endDate = new Date(year, fixedMonth + 1, 0);
+    const endOfArray = endDate.getDate() + 1;
+
+    const allDaysOfMonth = [];
+    for (let day = 2; day <= endOfArray; day++) {
+      allDaysOfMonth.push(new Date(year, fixedMonth, day));
+    }
+
+    const chartResponse = await Sale.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lt: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          total_amount: { $sum: { $toDouble: "$total_price" } },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const chartData = allDaysOfMonth.map((day) => {
+      const formattedDate = day.toISOString().split("T")[0];
+      const saleData = chartResponse.find((item) => item._id === formattedDate);
+      return {
+        date: formattedDate,
+        total_amount: saleData ? saleData.total_amount : 0,
+      };
+    });
+
+    return res.status(200).json({ success: true, data: chartData });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const yearlyCharts = async (req, res, next) => {
+  try {
+    const { year } = req.params;
+
+    const chartData = await Sale.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: new Date(`${year}-01-01T00:00:00.000Z`),
+            $lt: new Date(`${year}-12-31T23:59:59.999Z`),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: "$createdAt" },
+            month: { $month: "$createdAt" },
+          },
+          totalSales: { $sum: { $toDouble: "$total_price" } },
+        },
+      },
+      {
+        $sort: {
+          "_id.year": 1,
+          "_id.month": 1,
+        },
+      },
+    ]);
+
+    const formattedSales = Months.map((month) => {
+      const saleData = chartData.find((sale) => sale._id.month === month.id);
+      return {
+        id: month.id,
+        name: month.name,
+        year,
+        total_sales: saleData ? saleData.totalSales : 0,
+      };
+    });
+
+    return res.status(200).json({ success: true, data: formattedSales });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const weeklyChart = async (req, res, next) => {
+  try {
+    const endDate = new Date();
+    const startDate = new Date(endDate);
+    startDate.setDate(endDate.getDate() - 7);
+
+    const dayOfWeek = [];
+
+    for (let day = 1; day <= 7; day++) {
+      const newDate = new Date(startDate);
+      newDate.setDate(startDate.getDate() + day);
+      dayOfWeek.push(new Date(newDate));
+      console.log(dayOfWeek);
+    }
+
+    const chartData = await Sale.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+          amount: { $sum: { $toDouble: "$total_price" } },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const formattedSales = dayOfWeek.map((day) => {
+      const formattedDate = day.toISOString().split("T")[0];
+      const saleData = chartData.find((item) => item._id === formattedDate);
+      return {
+        date: formattedDate,
+        amount: saleData ? saleData.amount : 0,
+      };
+    });
+
+    return res.status(200).json({ success: true, data: formattedSales });
   } catch (error) {
     next(error);
   }
