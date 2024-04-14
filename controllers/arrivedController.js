@@ -1,4 +1,5 @@
 import ArrivedProduct from "../models/ArrivedProduct.js";
+import mongoose from "mongoose";
 
 export const AddArrivedProduct = async (req, res, next) => {
   try {
@@ -13,25 +14,57 @@ export const AddArrivedProduct = async (req, res, next) => {
 
 export const getArrivedProducts = async (req, res, next) => {
   try {
-    const { id, start_date, end_date } = req.query;
-    const queryArray = [];
+    const { id, product, start_date, end_date } = req.query;
+    let newQuery = {};
+    const aggregatePipeline = [];
 
-    if (id) queryArray.push({ _id: id });
-    if (start_date) queryArray.push({ start_date: start_date });
-    if (end_date) queryArray.push({ end_date: end_date });
-
-    let query = null;
-
-    if (queryArray.length > 0) {
-      query = { $or: queryArray };
+    if (id) {
+      newQuery._id = id;
+    }
+    if (start_date && end_date) {
+      newQuery.createdAt = {
+        $gte: new Date(start_date),
+        $lte: new Date(end_date),
+      };
     }
 
-    const findArrivedProducts = await ArrivedProduct.find(query).populate('product');
+    if (product) {
+      newQuery.product = new mongoose.Types.ObjectId(product);
+    }
+
+    aggregatePipeline.push({ $match: newQuery });
+
+    if (Object.keys(newQuery).length !== 0) {
+      aggregatePipeline.push({
+        $group: {
+          _id: null, // Burada '_id' yerine 'product' kullanılmalı
+          total_quantity: { $sum: "$quantity" },
+        },
+      });
+    }
+    
+    const aggragateTotal = await ArrivedProduct.aggregate(aggregatePipeline);
+
+    let totalQuantity = 0;
+    if (product) {
+      totalQuantity = aggragateTotal[0]?.total_quantity;
+    }
+
+    const findArrivedProducts = await ArrivedProduct.find(newQuery).populate(
+      "product"
+    );
+
 
     if (findArrivedProducts.length > 0) {
-      return res.status(200).json({ success: true, data: findArrivedProducts });
+      return res.status(200).json({
+        success: true,
+        ...(product && { total_quantity: totalQuantity }),
+        data: findArrivedProducts,
+      });
     } else {
-      return res.status(200).json({ success: false, data: [] });
+      return res
+        .status(200)
+        .json({ success: false, data: [], total_quantity: 0 });
     }
   } catch (error) {
     next(error);
@@ -61,9 +94,7 @@ export const deleteArrivedProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const updatedData = await ArrivedProduct.findByIdAndDelete(
-      { _id: id }
-    );
+    const updatedData = await ArrivedProduct.findByIdAndDelete({ _id: id });
 
     if (updatedData) {
       return res.status(200).json({ success: true, data: updatedData });
