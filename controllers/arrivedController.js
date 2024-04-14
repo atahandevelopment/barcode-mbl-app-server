@@ -26,7 +26,7 @@ export const getArrivedProducts = async (req, res, next) => {
       query = { $or: queryArray };
     }
 
-    const findArrivedProducts = await ArrivedProduct.find(query);
+    const findArrivedProducts = await ArrivedProduct.find(query).populate('product');
 
     if (findArrivedProducts.length > 0) {
       return res.status(200).json({ success: true, data: findArrivedProducts });
